@@ -20,3 +20,5 @@ jobs:
           bash -n frame/chromium-xr
       - name: Apply patch series to pinned Chromium sources
         run: python3 build/check-patches.py
+      - name: Check release publication guards
+        run: python3 .github/scripts/test_release_built.py

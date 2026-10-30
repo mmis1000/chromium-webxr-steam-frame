@@ -1,0 +1,53 @@
+name: Publish completed build
+
+on:
+  workflow_run:
+    workflows: [Build]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful main-branch Build run to publish
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.id == fromJSON(vars.RELEASE_BUILD_RUN_ID || '0'))
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_ID: ${{ inputs.run_id || github.event.workflow_run.id }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify completed build and determine release tag
+        id: build
+        run: python3 .github/scripts/release-built.py
+      - uses: actions/download-artifact@v8
+        with:
+          name: chromium-xr-arm64.tar.xz
+          run-id: ${{ env.RUN_ID }}
+          github-token: ${{ github.token }}
+          path: dist
+      - name: Publish build archive
+        env:
+          RELEASE_TAG: ${{ steps.build.outputs.tag }}
+          BUILD_SHA: ${{ steps.build.outputs.sha }}
+        run: |
+          cd dist
+          test -s chromium-xr-arm64.tar.xz
+          xz -t chromium-xr-arm64.tar.xz
+          sha256sum chromium-xr-arm64.tar.xz > chromium-xr-arm64.tar.xz.sha256
+          gh release create "$RELEASE_TAG" \
+            chromium-xr-arm64.tar.xz chromium-xr-arm64.tar.xz.sha256 \
+            --repo "$GITHUB_REPOSITORY" --target "$BUILD_SHA" \
+            --title "$RELEASE_TAG" --generate-notes

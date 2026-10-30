@@ -183,6 +183,13 @@ This removes the build, the launcher, the menu entry and the Steam shortcut.
 
 ## Updating
 
+To publish an existing successful manual **Build** run, run **Publish
+completed build** with its run ID. To publish a build still in progress,
+set the repository Actions variable `RELEASE_BUILD_RUN_ID` to that run ID;
+publication runs when that specific build succeeds. It uses the existing
+archive and tags the exact build commit as `build-RUN_ID`, with a SHA-256
+checksum attached. Other manual builds remain artifact-only.
+
 The build pins one Chromium release (`CHROMIUM_VERSION` in
 [`build/build.sh`](build/build.sh)). On GitHub, the **Bump Chromium** workflow
 checks once a week for a newer Linux release on Stable (on Beta until Stable
