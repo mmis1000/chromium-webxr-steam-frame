@@ -53,6 +53,14 @@ rollback. This browser installer installs only Chromium and its launcher.
 Loading a different driver requires restarting Chromium to refresh codec
 discovery.
 
+When the driver is absent or does not advertise AV1, Chromium selects its
+dav1d software decoder. Hardware AV1 support does not remove that decoder.
+A driver that advertises support and then silently stops producing frames
+can stall playback: the decoder error fallback path requires an error,
+and a lack of frames alone does not trigger a timeout-based software switch.
+To force software decoding for a session, close Chromium and launch it with
+`chromium-xr --disable-accelerated-video-decode`.
+
 The backport's direct V4L2 tests decoded 4K60 for 120 seconds (7,200 frames)
 and 8K30 for 120 seconds (3,600 frames), with no missing frames, buffer
 errors or sampled-pixel mismatches. These used looped 8-bit synthetic clips.
