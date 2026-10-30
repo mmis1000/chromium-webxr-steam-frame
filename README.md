@@ -46,6 +46,16 @@ SteamVR 2.17.10) with Chromium **156.0.8071.0**, built for arm64:
 The build now targets Chromium 157 or newer, which has the
 upstream Linux OpenXR changes merged. It hasn't been tested on the Frame yet.
 
+This fork enables **V4L2 hardware video decoding** through the Frame's Iris
+driver, including the input-size fix verified with H.264 1080p60 and WebXR
+on Chromium 156. Hardware AV1 is compiled in for use with an AV1-capable
+driver, such as the experimental
+[Iris AV1 backport](https://github.com/mmis1000/steamframe-iris-av1-poc).
+The stock driver tested on SteamOS 0.5.6 exposes H.264, HEVC and VP9;
+AV1 uses software decoding there. See
+[decoding support and validation](docs/video-decoding.md) for tested results
+and the remaining Chromium 157 and AV1 playback checks.
+
 This is an unofficial, experimental build. See [Limitations](#limitations)
 before you use it for anything other than VR sites.
 
@@ -63,13 +73,13 @@ before you use it for anything other than VR sites.
 On the Linux build machine:
 
 ```sh
-git clone https://github.com/saphid/chromium-webxr-steam-frame
+git clone https://github.com/mmis1000/chromium-webxr-steam-frame
 cd chromium-webxr-steam-frame
 mkdir -p ~/chromium-xr
 tmux new -d -s chromium-xr 'build/build.sh > ~/chromium-xr/build.log 2>&1'
 ```
 
-`build.sh` fetches Chromium with the Linux OpenXR changes, applies the patch
+`build.sh` fetches Chromium with the Linux OpenXR changes, applies the patches
 in [`patches/`](patches), cross-compiles for arm64 and packs the result into
 `~/chromium-xr/chromium-xr-arm64.tar.xz` (about 145 MB).
 

@@ -1,0 +1,183 @@
+diff --git a/media/gpu/BUILD.gn b/media/gpu/BUILD.gn
+index 367121a..2183a9c 100644
+--- a/media/gpu/BUILD.gn
++++ b/media/gpu/BUILD.gn
+@@ -18,6 +18,7 @@ buildflag_header("buildflags") {
+ 
+   flags = [
+     "USE_AV1_HW_DECODER=$use_av1_hw_decoder",
++    "USE_V4L2_STATELESS_AV1_DECODER=$use_v4l2_stateless_av1_decoder",
+     "USE_VAAPI=$use_vaapi",
+     "USE_VAAPI_IMAGE_CODECS=$use_vaapi_image_codecs",
+     "USE_V4L2_CODEC=$use_v4l2_codec",
+diff --git a/media/gpu/args.gni b/media/gpu/args.gni
+index c373e8c..a25b221 100644
+--- a/media/gpu/args.gni
++++ b/media/gpu/args.gni
+@@ -60,3 +60,10 @@ declare_args() {
+   use_av1_hw_decoder =
+       is_chromeos || (is_linux && use_vaapi) || is_win || is_apple
+ }
++
++# Stateful V4L2 AV1 does not require the stateless request API headers.
++declare_args() {
++  use_v4l2_stateless_av1_decoder = use_v4l2_codec && use_av1_hw_decoder
++}
++assert(!use_v4l2_stateless_av1_decoder ||
++       (use_v4l2_codec && use_av1_hw_decoder))
+diff --git a/media/gpu/v4l2/BUILD.gn b/media/gpu/v4l2/BUILD.gn
+index 0427cb6..bf375a3 100644
+--- a/media/gpu/v4l2/BUILD.gn
++++ b/media/gpu/v4l2/BUILD.gn
+@@ -61,7 +61,7 @@ source_set("v4l2") {
+   ]
+ 
+   # enable_av1_v4l2_decoder
+-  if (use_av1_hw_decoder) {
++  if (use_v4l2_stateless_av1_decoder) {
+     sources += [
+       "v4l2_video_decoder_delegate_av1.cc",
+       "v4l2_video_decoder_delegate_av1.h",
+@@ -199,7 +199,7 @@ executable("v4l2_stateless_decoder") {
+     ]
+   }
+ 
+-  if (use_av1_hw_decoder) {
++  if (use_v4l2_stateless_av1_decoder) {
+     sources += [
+       "test/av1_decoder.cc",
+       "test/av1_decoder.h",
+@@ -211,6 +211,7 @@ executable("v4l2_stateless_decoder") {
+     "//crypto",
+     "//media",
+     "//media:test_support",
++    "//media/gpu:buildflags",
+     "//media/gpu:common",
+     "//third_party/libgav1:libgav1_parser",
+     "//third_party/libyuv",
+diff --git a/media/gpu/v4l2/test/v4l2_stateless_decoder.cc b/media/gpu/v4l2/test/v4l2_stateless_decoder.cc
+index ca7c519..678816c 100644
+--- a/media/gpu/v4l2/test/v4l2_stateless_decoder.cc
++++ b/media/gpu/v4l2/test/v4l2_stateless_decoder.cc
+@@ -16,13 +16,13 @@
+ #include "base/strings/string_util.h"
+ #include "base/strings/stringprintf.h"
+ #include "crypto/obsolete/md5.h"
++#include "media/gpu/buildflags.h"
+ #include "media/gpu/v4l2/test/video_decoder.h"
+ #include "media/gpu/v4l2/test/vp8_decoder.h"
+ #include "media/gpu/v4l2/test/vp9_decoder.h"
+ #include "media/media_buildflags.h"
+ 
+-// AV1 stateless decoding not supported upstream yet
+-#if BUILDFLAG(IS_CHROMEOS)
++#if BUILDFLAG(USE_V4L2_STATELESS_AV1_DECODER)
+ #include "media/gpu/v4l2/test/av1_decoder.h"
+ #endif
+ #include "media/gpu/v4l2/test/h264_decoder.h"
+@@ -30,8 +30,7 @@
+ #include "media/gpu/v4l2/test/h265_decoder.h"
+ #endif
+ 
+-// AV1 stateless decoding not supported upstream yet
+-#if BUILDFLAG(IS_CHROMEOS)
++#if BUILDFLAG(USE_V4L2_STATELESS_AV1_DECODER)
+ using media::v4l2_test::Av1Decoder;
+ #endif
+ using media::v4l2_test::H264Decoder;
+@@ -110,8 +109,7 @@ std::unique_ptr<VideoDecoder> CreateVideoDecoder(
+ 
+   std::unique_ptr<VideoDecoder> decoder;
+ 
+-// AV1 stateless decoding not supported upstream yet
+-#if BUILDFLAG(IS_CHROMEOS)
++#if BUILDFLAG(USE_V4L2_STATELESS_AV1_DECODER)
+   decoder = Av1Decoder::Create(stream);
+ #endif
+ 
+diff --git a/media/gpu/v4l2/v4l2_utils.cc b/media/gpu/v4l2/v4l2_utils.cc
+index af22913..da618b5 100644
+--- a/media/gpu/v4l2/v4l2_utils.cc
++++ b/media/gpu/v4l2/v4l2_utils.cc
+@@ -33,6 +33,17 @@
+ #include "media/media_buildflags.h"
+ #include "ui/gfx/geometry/size.h"
+ 
++// Chromium's Linux sysroot may lack AV1 profile controls.
++// These are the upstream Linux UAPI values.
++#ifndef V4L2_CID_MPEG_VIDEO_AV1_PROFILE
++#define V4L2_CID_MPEG_VIDEO_AV1_PROFILE (V4L2_CID_CODEC_BASE + 655)
++enum v4l2_mpeg_video_av1_profile {
++  V4L2_MPEG_VIDEO_AV1_PROFILE_MAIN = 0,
++  V4L2_MPEG_VIDEO_AV1_PROFILE_HIGH = 1,
++  V4L2_MPEG_VIDEO_AV1_PROFILE_PROFESSIONAL = 2,
++};
++#endif
++
+ // This has not been accepted upstream.
+ #ifndef V4L2_PIX_FMT_AV1
+ #define V4L2_PIX_FMT_AV1 v4l2_fourcc('A', 'V', '0', '1') /* AV1 */
+@@ -343,8 +354,10 @@ static const std::map<v4l2_enum_type, v4l2_enum_type>
+         {V4L2_PIX_FMT_VP9_FRAME, V4L2_CID_MPEG_VIDEO_VP9_PROFILE},
+ #if BUILDFLAG(USE_AV1_HW_DECODER)
+         {V4L2_PIX_FMT_AV1, V4L2_CID_MPEG_VIDEO_AV1_PROFILE},
++#if BUILDFLAG(USE_V4L2_STATELESS_AV1_DECODER)
+         {V4L2_PIX_FMT_AV1_FRAME, V4L2_CID_MPEG_VIDEO_AV1_PROFILE},
+ #endif
++#endif
+ };
+ 
+ // Default VideoCodecProfiles associated to a V4L2 Codec Control ID.
+@@ -725,7 +738,7 @@ std::string ControlToString(const T (&arr)[N][M], const std::string control) {
+     s << ControlToString(base->control, #control); \
+   } while (0)
+ 
+-#if BUILDFLAG(USE_AV1_HW_DECODER)
++#if BUILDFLAG(USE_V4L2_STATELESS_AV1_DECODER)
+ static std::string PrintStatelessAV1Control(
+     const struct v4l2_ext_control* ext_ctrls) {
+   std::ostringstream s;
+@@ -1201,7 +1214,7 @@ std::string V4L2ControlsToString(const struct v4l2_ext_controls* ctrls) {
+ 
+   for (uint32_t i = 0; i < ctrls->count; ++i) {
+     switch (ext_ctrls->id) {
+-#if BUILDFLAG(USE_AV1_HW_DECODER)
++#if BUILDFLAG(USE_V4L2_STATELESS_AV1_DECODER)
+       case V4L2_CID_STATELESS_AV1_SEQUENCE:
+       case V4L2_CID_STATELESS_AV1_TILE_GROUP_ENTRY:
+       case V4L2_CID_STATELESS_AV1_FRAME:
+diff --git a/media/gpu/v4l2/v4l2_video_decoder.cc b/media/gpu/v4l2/v4l2_video_decoder.cc
+index ca2e563..7583004 100644
+--- a/media/gpu/v4l2/v4l2_video_decoder.cc
++++ b/media/gpu/v4l2/v4l2_video_decoder.cc
+@@ -765,7 +765,7 @@ CroStatus V4L2VideoDecoder::SetExtCtrlsInit(const gfx::Size& size,
+   struct v4l2_ctrl_hevc_sps v4l2_hevc_sps;
+   struct v4l2_ctrl_vp8_frame v4l2_vp8_frame;
+   struct v4l2_ctrl_vp9_frame v4l2_vp9_frame;
+-#if BUILDFLAG(USE_AV1_HW_DECODER)
++#if BUILDFLAG(USE_V4L2_STATELESS_AV1_DECODER)
+   struct v4l2_ctrl_av1_sequence v4l2_av1_sequence;
+ #endif
+ 
+@@ -828,7 +828,7 @@ CroStatus V4L2VideoDecoder::SetExtCtrlsInit(const gfx::Size& size,
+     ctrl.ptr = &v4l2_vp9_frame;
+ 
+     ctrls.push_back(ctrl);
+-#if BUILDFLAG(USE_AV1_HW_DECODER)
++#if BUILDFLAG(USE_V4L2_STATELESS_AV1_DECODER)
+   } else if (input_format_fourcc_ == V4L2_PIX_FMT_AV1_FRAME) {
+     // AV1 requires that the |bit_depth| parameter be set to enable
+     // formats on the CAPTURE queue. And flags has to be set for profile 0
+diff --git a/media/gpu/v4l2/v4l2_video_decoder_backend_stateless.cc b/media/gpu/v4l2/v4l2_video_decoder_backend_stateless.cc
+index a890ebb..eed9cdf 100644
+--- a/media/gpu/v4l2/v4l2_video_decoder_backend_stateless.cc
++++ b/media/gpu/v4l2/v4l2_video_decoder_backend_stateless.cc
+@@ -754,7 +754,7 @@ bool V4L2StatelessVideoDecoderBackend::CreateDecoder() {
+     decoder_ = std::make_unique<VP9Decoder>(
+         std::make_unique<V4L2VideoDecoderDelegateVP9>(this, device_.get()),
+         profile_, color_space_);
+-#if BUILDFLAG(USE_AV1_HW_DECODER)
++#if BUILDFLAG(USE_V4L2_STATELESS_AV1_DECODER)
+   } else if (profile_ >= AV1PROFILE_MIN && profile_ <= AV1PROFILE_MAX) {
+     decoder_ = std::make_unique<AV1Decoder>(
+         std::make_unique<V4L2VideoDecoderDelegateAV1>(this, device_.get()),

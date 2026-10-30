@@ -1,0 +1,22 @@
+name: Check recipe
+
+on:
+  pull_request:
+  push:
+    branches: [main, 'codex/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  patches:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check shell syntax
+        run: |
+          bash -n build/build.sh
+          bash -n frame/chromium-xr
+      - name: Apply patch series to pinned Chromium sources
+        run: python3 build/check-patches.py
