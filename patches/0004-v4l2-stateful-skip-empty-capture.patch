@@ -1,0 +1,18 @@
+diff --git a/media/gpu/v4l2/v4l2_stateful_video_decoder.cc b/media/gpu/v4l2/v4l2_stateful_video_decoder.cc
+--- a/media/gpu/v4l2/v4l2_stateful_video_decoder.cc
++++ b/media/gpu/v4l2/v4l2_stateful_video_decoder.cc
+@@ -979,6 +979,14 @@ void V4L2StatefulVideoDecoder::TryAndDequeueCAPTUREQueueBuffers() {
+         std::move(flush_cb_).Run(DecoderStatus::Codes::kOk);
+       }
+       return;
++    } else if (dequeued_buffer->GetPlaneBytesUsed(0) <=
++               dequeued_buffer->GetPlaneDataOffset(0)) {
++      // Iris can return empty CAPTURE buffers between displayed AV1 frames.
++      // Recycle them without presenting the buffer's previous pixel contents.
++      VLOGF(3) << "Ignoring empty CAPTURE buffer";
++      if (!DrainOUTPUTQueue()) {
++        LOG(ERROR) << "Failed to drain resources from |OUTPUT_queue_|.";
++      }
+     } else if (!dequeued_buffer->IsError()) {
+       // IsError() doesn't flag a fatal error, but more a discard-this-buffer
+       // marker. This is seen -seldom- from venus driver (QC) when entering a
