@@ -1,4 +1,5 @@
-# Builds Chromium XR for arm64 and uploads chromium-xr-arm64.tar.xz.
+# Builds Chromium XR with Iris V4L2 decoding for arm64 and uploads
+# chromium-xr-arm64.tar.xz.
 #
 # A first build takes about a day of CPU time on a free runner, longer than a
 # job may run (6 h). So the build is split into parts: each part builds for
@@ -8,6 +9,7 @@
 # Run it from the Actions tab, or push a tag such as v157.0.8088.0-1 to also
 # publish a release.
 name: Build
+run-name: Build Steam Frame Chromium with V4L2 decoding
 
 on:
   workflow_dispatch:
