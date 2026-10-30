@@ -39,7 +39,7 @@ Chromium discovers numbered `/dev/video*` devices on Linux.
 | H.264 | Stock driver exposing `H264` | Chromium 156: 1080p60 playback and native WebXR passed |
 | HEVC | Driver exposing `HEVC` and a supported profile | Playback not tested |
 | VP9 | Driver exposing `VP90` and a supported profile | Playback not tested |
-| AV1 | Driver exposing `AV01` | Direct driver tests passed; browser integration pending |
+| AV1 | Driver exposing `AV01` and a usable decoded output format | Chromium 156 selects V4L2, but the tested backport stalls during output setup; see below |
 
 The [experimental Iris AV1 backport](https://github.com/mmis1000/steamframe-iris-av1-poc)
 adds AV1 to the tested kernel `6.18.0-g83913f38113c`. Its separate build and
@@ -63,11 +63,10 @@ errors or sampled-pixel mismatches. These used looped 8-bit synthetic clips.
   poses while playback advanced at about 60 fps in the measured sample.
 - October 30, 2026: the headset was reachable with its stock driver and
   advertised H.264, HEVC and VP9. AV1 was absent, as expected after reboot.
-- The AV1 build changes compiled successfully for ARM64 against the cached
-  Chromium 156 tree: stateful decoder, stateless backend, decoder setup and
-  codec utilities. The port includes the AV1 logging guards present in 157.
-  This checks the source changes against the older Linux sysroot; it does
-  not establish browser playback with AV1.
+- October 30, 2026: a complete ARM64 Chromium 156.0.8071.0 build with the
+  AV1 changes was tested on the headset with the temporary Iris AV1 module.
+  Hardware decoder selection succeeded, but playback stalled before the
+  first frame. The measurements and output-format issue are recorded below.
 - The recipe targets Chromium 157.0.8103.15. Full compilation and on-device
   playback of that exact release remain required.
 - All three patches applied and passed their reverse checks against the
@@ -77,6 +76,74 @@ errors or sampled-pixel mismatches. These used looped 8-bit synthetic clips.
 Run `python3 build/check-patches.py` to repeat the source check. An optional
 version argument checks another release. The Check recipe workflow runs
 this check and shell syntax validation on pushes and pull requests.
+
+## Chromium AV1 runtime test: October 30, 2026
+
+The test used SteamOS 0.5.6, kernel `6.18.0-g83913f38113c`, Chromium
+156.0.8071.0 and the temporary Iris AV1 backport. The browser was staged
+separately from the installed browser. Media was stored on the headset to
+exclude network throughput. The pinned Chromium 157 build was still
+running when these results were recorded.
+
+Hardware attempts reported `V4L2VideoDecoder` and
+`kIsPlatformVideoDecoder=true` in Chromium's media diagnostics:
+
+| AV1 input | Hardware browser result |
+|---|---|
+| Synthetic 3840×2160, 60 fps | Zero displayed frames; startup timed out after 20 seconds |
+| Synthetic 7680×4320, 30 fps | Zero displayed frames; startup timed out after 20 seconds |
+| YouTube `yVLssFEqKmo`, itag 401, 3840×2160 at 60 fps | Same startup failure |
+| YouTube `yVLssFEqKmo`, itag 571, 7680×4320 at 60 fps | Same startup failure |
+
+All four attempts received a V4L2 resolution-change event. Chromium then
+enumerated only `Q08C` for CAPTURE and reached image-processor setup without
+producing a frame. This establishes decoder discovery and startup progress;
+sustained hardware playback and hardware WebXR performance remain unmeasured.
+
+The backport's `platform_sm8550.c` contains:
+
+```c
+{PIX_FMTS, DEC, AV1, FMT_NV12, FMT_TP10C, FMT_NV12C},
+```
+
+The sixth field is `step_or_mask`, so AV1 format enumeration advertises
+only compressed `FMT_NV12C` (`Q08C`). Setting the input format to AV1 and
+then running `v4l2-ctl --list-formats` reproduced this independently of
+Chromium. A newly opened device defaults to H.264 and lists additional
+formats, so listing formats before selecting AV1 misses the issue.
+The earlier direct decoder probe explicitly selected linear NV12 and
+bypassed this enumeration mismatch. The next integration test should add
+linear NV12 to the AV1 capability mask, rebuild the temporary driver, and
+repeat browser playback. That change was not made during this test.
+
+For comparison, the previous Chromium 156 binary used `Dav1dVideoDecoder`
+for these software baselines:
+
+| Local AV1 input | Measured wall time | Video time advanced | Dropped / total frames | Mean Chromium CPU cores |
+|---|---:|---:|---:|---:|
+| Synthetic 4K60 | 30.19 s | 30.18 s | 8 / 1,811 (0.44%) | 1.97 |
+| Synthetic 8K30 | 30.30 s | 30.30 s | 0 / 910 (0%) | 3.27 |
+| Synthetic 8K60 | 30.31 s | 30.23 s | 81 / 1,815 (4.46%) | 6.46 |
+| YouTube 4K60 | 60.41 s | 60.40 s | 8 / 3,626 (0.22%) | 2.52 |
+| YouTube 8K60 | 60.69 s | 51.99 s | 362 / 3,121 (11.60%) | 6.88 |
+
+The real 8K60 clip generated 80 waiting events during measurement. A
+30.26-second software test of the real 4K60 clip through the project's
+WebGL preview, using its two embedded eye meshes, reported zero drops
+across 1,816 frames and 3.00 CPU cores. This was a desktop eye preview;
+native immersive WebXR was not measured in this session.
+
+Dropped-frame counts come from `getVideoPlaybackQuality()`. CPU cores are
+summed Chromium process CPU seconds divided by elapsed wall time. These
+short playback samples do not measure whole-device power consumption.
+
+Test browser SHA-256:
+`5b5cb5e0b1ac9c22b63edc26ad15ff59b63751754ec45333112aaadc0b8d176c`.
+Temporary driver SHA-256:
+`be6371e243489ed04350a257ca93636dc518a313a0653f9e7fa640535d077028`.
+The installed stock driver file retained its original checksum.
+After testing, a normal reboot restored the stock H.264/HEVC/VP9 formats
+and the active `iris-driver-rebind.service`; AV1 was absent again.
 
 ## Check a new build
 
