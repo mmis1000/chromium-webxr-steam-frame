@@ -4,8 +4,10 @@ Local changes applied on top of the Chromium release that `build/build.sh`
 builds (`CHROMIUM_VERSION`), in file-name order.
 
 - `0001-xr-sandbox-allow-getsockopt-SO_PEERCRED.patch`: lets the XR process
-  call `getsockopt(SOL_SOCKET, SO_PEERCRED)`, which SteamVR's OpenXR runtime
-  needs. See [docs/technical-notes.md](../docs/technical-notes.md).
+  call `getsockopt(SOL_SOCKET, SO_PEERCRED)`, which earlier SteamVR runtimes
+  needed. The published 157.0.8103.15 archive includes this allowance;
+  SteamOS 0.5.7 no longer needs it for its connection path. The launcher keeps
+  seccomp enabled. See [docs/technical-notes.md](../docs/technical-notes.md).
 - `0002-v4l2-stateful-set-coded-size.patch`: passes the video's coded size
   when configuring the compressed input queue. Iris rejects input-buffer
   allocation after Chromium's previous `0 x 0` configuration.

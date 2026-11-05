@@ -41,9 +41,9 @@ Chromium discovers numbered `/dev/video*` devices on Linux.
 
 | Codec | Driver requirement | Validation |
 |---|---|---|
-| H.264 | Stock driver exposing `H264` | Chromium 156: 1080p60 playback and native WebXR passed |
+| H.264 | Stock driver exposing `H264` | Chromium 156 and 157: 1080p60 hardware playback passed |
 | HEVC | Driver exposing `HEVC` and a supported profile | Playback not tested |
-| VP9 | Driver exposing `VP90` and a supported profile | Playback not tested |
+| VP9 | Driver exposing `VP90` and a supported profile | Chromium 157: YouTube 4K stream used V4L2 in native WebXR |
 | AV1 | Corrected backport exposing `AV01` and linear `NV12` | Chromium 156 hardware playback works with patch 0004; see runtime results below |
 
 The [experimental Iris AV1 backport](https://github.com/mmis1000/steamframe-iris-av1-poc)
@@ -69,6 +69,25 @@ below use a separate playback path. 10-bit/HDR and film grain remain untested.
 
 ## Validation record
 
+- November 5, 2026: installed Chromium 157.0.8103.15 from release
+  `build-41088533362` (source commit `4ef3b341d2591ea92ea81630f241a4da237b7d77`)
+  on SteamOS 0.5.7, build `20261103.6153824`, kernel `7.2.0-g9a8c8ea46950`.
+  The launcher no longer passes `--disable-seccomp-filter-sandbox`.
+  The installed XR service reported `Seccomp: 2` and `NoNewPrivs: 1`;
+  native WebXR returned both eye views over 1,257 callbacks in the combined
+  codec smoke test. The runtime reported `visible-blurred`.
+  Local H.264 1080p60 selected `V4L2VideoDecoder`, reported platform decoding,
+  and produced 321 frames with zero drops in the post-install sample.
+  YouTube `yVLssFEqKmo`, itag 315 (VP9 3840 × 2160 at 60 fps), also selected
+  V4L2 and rendered in native WebXR. Its initial 10-second sample included
+  synchronization seeks and 118 dropped frames out of 620; this verifies
+  integration, not sustained 4K60 performance. A low-bitrate synthetic VP9
+  file selected libvpx instead, so decoder selection was checked per player.
+  The stock driver advertised H.264, HEVC and VP9; the AV1 sample correctly
+  fell back to dav1d. The GPU process separately reported unsandboxed.
+  The previous browser is retained on this test Frame at
+  `/home/steamos/chromium-xr-before-157-20261105`, with its launcher at
+  `/home/steamos/chromium157-upgrade-20261105/launcher-before`.
 - October 26, 2026: Chromium 156.0.8071.0 with V4L2 enabled and patch 0002
   displayed 682 frames of H.264 1080p60 with zero reported drops. Media
   diagnostics identified `V4L2VideoDecoder` with platform decoding enabled.
@@ -80,8 +99,8 @@ below use a separate playback path. 10-bit/HDR and film grain remain untested.
   AV1 changes was tested on the headset with the temporary Iris AV1 module.
   Hardware decoder selection succeeded, but playback stalled before the
   first frame. The measurements and output-format issue are recorded below.
-- The recipe targets Chromium 157.0.8103.15. Full compilation and on-device
-  playback of that exact release remain required.
+- The October recipe targeted Chromium 157.0.8103.15. Its compilation and
+  on-device playback are now covered by the November 5 record above.
 - All four patches applied and passed their reverse checks against the
   pinned 157 sources. Launcher checks preserved the WebXR and decoding
   features, a URL containing spaces and the software-decoding override.

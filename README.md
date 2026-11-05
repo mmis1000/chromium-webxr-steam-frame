@@ -5,12 +5,10 @@ Steam Frame** headset. Press the
 **Enter VR** button on a WebXR site and it opens in the headset, through
 SteamVR, as a full VR experience.
 
-The Chromium that SteamOS offers (Flathub) can't do this. Websites see
-`navigator.xr`, but `isSessionSupported("immersive-vr")` returns `false`, so
-VR buttons are greyed out or missing. Upstream Chromium only wires up its
-OpenXR backend on Windows and Android. This repo builds Chromium with the
-in-progress Linux OpenXR changes, adds a small fix so it works with SteamVR,
-and installs it on the Frame as a normal app in your Steam library.
+Chromium 157 includes upstream Linux OpenXR support. On SteamOS 0.5.7,
+`--enable-features=OpenXR` enables native WebXR with the XR service's sandbox
+active. This fork adds V4L2 hardware video decoding for the Frame's Iris
+driver and installs Chromium as a normal app in your Steam library.
 
 ## What you can do with it
 
@@ -31,7 +29,14 @@ The web has a lot of VR content that only needs a browser:
 
 ## Status
 
-Tested on a Steam Frame (SteamOS 0.3.0, build 20260922.6101926,
+On November 5, 2026, the published **157.0.8103.15** build was installed on
+SteamOS **0.5.7** (build `20261103.6153824`). Native WebXR produced both eye
+views with the XR service's seccomp filter active. H.264 1080p60 and a
+YouTube 3840 × 2160 VP9 stream selected `V4L2VideoDecoder`. AV1 used dav1d
+because the loaded stock driver did not advertise AV1. See the
+[validation record](docs/video-decoding.md#validation-record) for details.
+
+Earlier tests on a Steam Frame (SteamOS 0.3.0, build 20260922.6101926,
 SteamVR 2.17.10) with Chromium **156.0.8071.0**, built for arm64:
 
 | | |
@@ -43,8 +48,9 @@ SteamVR 2.17.10) with Chromium **156.0.8071.0**, built for arm64:
 | Controllers inside WebXR pages | tracked pose every frame; squeeze events and button state reach the page (trigger, thumbstick and left controller not tested) |
 | Frame rate | 72 fps, every frame 13.9–14 ms over 16 s (simple scene); SteamVR dropped frames only at startup |
 
-The build now targets Chromium 157 or newer, which has the
-upstream Linux OpenXR changes merged. It hasn't been tested on the Frame yet.
+The build targets Chromium 157.0.8103.15, which has the upstream Linux
+OpenXR changes merged. The launcher requires SteamOS 0.5.7 or newer and
+keeps the XR service's seccomp filter enabled.
 
 This fork enables **V4L2 hardware video decoding** through the Frame's Iris
 driver, including the input-size fix verified with H.264 1080p60 and WebXR
@@ -54,15 +60,15 @@ driver, such as the experimental
 The stock driver tested on SteamOS 0.5.6 exposes H.264, HEVC and VP9;
 AV1 uses software decoding there. See
 [decoding support and validation](docs/video-decoding.md) for tested results
-and the remaining Chromium 157 and AV1 playback checks.
+and the AV1 driver requirements.
 
 This is an unofficial, experimental build. See [Limitations](#limitations)
 before you use it for anything other than VR sites.
 
 ## Requirements
 
-- A Steam Frame with SteamVR, and a way to run commands on it: the terminal
-  in Desktop Mode, or SSH.
+- A Steam Frame running SteamOS 0.5.7 or newer with SteamVR, and a way to run
+  commands on it: the terminal in Desktop Mode, or SSH.
 - To build: an **x86-64 Linux machine** with about **90 GB free disk**, git,
   Python 3, tmux (or another way to keep a long job running) and a few
   hours. No root access is needed. The first build took about 9.5 hours on
@@ -152,12 +158,10 @@ page directly.
 
 ## Limitations
 
-- **Part of the sandbox is off.** The launcher passes
-  `--disable-seccomp-filter-sandbox`, which turns off Chrome's system-call
-  filter for every process; the namespace sandbox stays on. Without it,
-  SteamVR refuses the session (details in
-  [docs/technical-notes.md](docs/technical-notes.md)). Use Chromium XR for VR
-  sites and keep another browser for everyday browsing.
+- **GPU sandbox status.** The XR service and renderer seccomp filters work
+  on SteamOS 0.5.7. The GPU process can still report unsandboxed on the Frame;
+  removing the old global filter-disable flag does not change that separate
+  status. See [docs/technical-notes.md](docs/technical-notes.md).
 - **Saved passwords aren't encrypted.** The launcher uses
   `--password-store=basic` so startup doesn't stop at a keyring prompt, so
   passwords you save are stored unencrypted in `~/.config/chromium-xr`.
@@ -215,18 +219,17 @@ above.
   [issue 506004811](https://issues.chromium.org/issues/506004811). Both have
   merged and ship from Chromium 157. The OpenXR device is behind
   `--enable-features=OpenXR`, which the launcher passes.
-- **SteamVR fix.** SteamVR's OpenXR runtime asks the kernel who is on the
-  other end of its socket (`getsockopt(SO_PEERCRED)`). The XR sandbox policy
-  blocks all `getsockopt` calls, which crashed the XR process.
-  [`patches/0001-…`](patches/0001-xr-sandbox-allow-getsockopt-SO_PEERCRED.patch)
-  allows only that one option. It's reported upstream, with the seccomp
-  issue below, in
+- **SteamVR compatibility.** SteamOS 0.5.7's runtime works with Chromium's
+  XR sandbox. Valve removed the socket credential check and changed its
+  process-ID exchange, addressing the earlier failures tracked in
   [utzcoz/chromium-webxr-linux#7](https://github.com/utzcoz/chromium-webxr-linux/issues/7).
+  The published 157.0.8103.15 archive retains the narrow `SO_PEERCRED`
+  allowance from patch 0001; the launcher no longer disables seccomp.
 - **Steam integration.** `frame/steam-shortcut.py` adds the shortcut through
   the Steam client's local DevTools port, the same API the Steam UI uses.
   Steam runs each app as its own panel, so Chromium gets one too.
 
-More detail, including why the seccomp filter is off, is in
+More detail, including the history of the sandbox workaround, is in
 [docs/technical-notes.md](docs/technical-notes.md).
 
 ## Related work

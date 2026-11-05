@@ -4,7 +4,31 @@ What we found getting WebXR working on the Steam Frame, for anyone picking
 this up or taking it upstream. Tested with Chromium 156.0.8071.0 (arm64),
 SteamOS 0.3.0 (build 20260922.6101926) and SteamVR 2.17.10.
 
-## Why stock Chromium on Linux has no immersive WebXR
+## SteamOS 0.5.7 sandbox update
+
+The launcher now keeps seccomp enabled and requires SteamOS 0.5.7 or newer.
+Valve removed `SO_PEERCRED` from the affected SteamVR connection path and
+changed how client and server exchange process IDs. See the developer's
+[October 2 update](https://github.com/utzcoz/chromium-webxr-linux/issues/7)
+and the [SteamOS 0.5.7 release notes](https://steamcommunity.com/app/4165890/announcements/detail/527161296156696117).
+
+On November 5, the installed custom Chromium 156 and stock Google Chrome
+157.0.8103.38 both entered native WebXR with both eye poses and with the XR
+process reporting `Seccomp: 2`. Renderer filtering was also active in the
+custom build. The GPU process separately reported `Seccomp: 0`. The stock
+build required `--enable-features=OpenXR` and used software video decoders.
+
+The released custom 157.0.8103.15 archive still contains patch 0001's narrow
+`SO_PEERCRED` permission. That permission is distinct from disabling the
+seccomp filter; the updated launcher removes the global disable flag.
+The same archive was subsequently installed and tested on November 5:
+native WebXR, H.264 hardware decoding and YouTube 4K VP9 hardware decoding
+worked with the updated launcher. See the
+[video-decoding validation record](video-decoding.md#validation-record).
+
+The following sections record the original failure and its workaround.
+
+## Original Linux OpenXR integration gap
 
 Chromium 154 was the first release to compile OpenXR on Linux
 (`enable_openxr` includes Linux). But
@@ -27,9 +51,9 @@ with both is 157.0.8088.0 (Canary):
   `--no-sandbox`.
 
 The notes below were written against patch set 44 of CL 8132979, before it
-merged. Neither problem is fixed upstream yet: the merged XR seccomp policy
-still refuses every `getsockopt`, and nothing changes how the broker answers
-`/proc/self`.
+merged. At that time the merged XR seccomp policy refused every `getsockopt`,
+and the broker answered `/proc/self` for its own process. The later SteamVR
+changes described above resolved the compatibility issue.
 [CL 8498995](https://chromium-review.googlesource.com/c/chromium/src/+/8498995),
 also in 157.0.8088.0, lets the XR sandbox read a Flatpak's GPU drivers; it
 matters for the Flathub Chromium, not for this build.
@@ -44,7 +68,7 @@ other end of its socket, and `XrProcessPolicy` refuses every `getsockopt`.
 allows exactly `SOL_SOCKET`/`SO_PEERCRED` and still returns `EPERM` for
 everything else.
 
-## Why the seccomp filter is still off
+## Why earlier launchers disabled seccomp
 
 With the patch, `xrCreateInstance` gets further but fails with
 `Unable to init path manager: VRInitError_Init_Internal`. SteamVR's client
@@ -54,12 +78,9 @@ the broker's, and SteamVR registers the broker's PID instead of the XR
 process's. Granting the broker `/proc/self` doesn't help, because the broker
 can only answer for itself.
 
-Fixing this properly needs a change in Chromium: for example, having the
-broker client rewrite `/proc/self` to `/proc/<caller pid>`, or opening the
-needed `/proc` files before the sandbox seals. Until then the launcher passes
-`--disable-seccomp-filter-sandbox`. The namespace sandbox still works:
-SteamOS allows unprivileged user namespaces, so the setuid `chrome_sandbox`
-isn't needed.
+Earlier launchers passed `--disable-seccomp-filter-sandbox` to avoid this
+failure. The namespace sandbox stayed active. SteamOS 0.5.7's SteamVR
+changes make the global disable flag unnecessary, so it has been removed.
 
 ## What a working session looks like
 

@@ -33,13 +33,10 @@ fi
 # --ozone-platform=x11: gamescope's X display, where each app is a panel.
 # --no-first-run and --password-store=basic: otherwise startup can stop at a
 #   first-run or keyring prompt you can't see.
-# --disable-seccomp-filter-sandbox: with the XR process's seccomp policy on,
-#   SteamVR sees the wrong process ID and refuses the session (see
-#   docs/technical-notes.md). The namespace sandbox stays on.
+# SteamOS 0.5.7 supports the XR service's seccomp sandbox.
 exec "$CHROME" \
   --user-data-dir="$HOME/.config/chromium-xr" \
   --enable-features=OpenXR,AcceleratedVideoDecoder \
   --ozone-platform=x11 \
   --no-first-run --no-default-browser-check --password-store=basic \
-  --disable-seccomp-filter-sandbox \
   "$@"
