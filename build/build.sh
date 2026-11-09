@@ -110,6 +110,12 @@ dcheck_always_on = false
 symbol_level = 0
 blink_symbol_level = 0
 v8_symbol_level = 0
+# Steam Frame's Iris driver exposes a stateful V4L2 decoder.
+use_v4l2_codec = true
+use_vaapi = false
+use_av1_hw_decoder = true
+# The Linux sysroot lacks stateless AV1 request controls; Iris uses AV01.
+use_v4l2_stateless_av1_decoder = false
 proprietary_codecs = true
 ffmpeg_branding = "Chrome"
 enable_nacl = false
