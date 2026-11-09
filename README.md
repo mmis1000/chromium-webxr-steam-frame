@@ -46,6 +46,13 @@ SteamVR 2.17.10) with Chromium **156.0.8071.0**, built for arm64:
 The build now targets Chromium 157 or newer, which has the
 upstream Linux OpenXR changes merged. It hasn't been tested on the Frame yet.
 
+The recipe enables Iris V4L2 hardware video decoding, supplies the coded
+input dimensions required by the driver, and skips empty decoded buffers
+that caused blinking during AV1 playback. Stateful AV1 can be built without
+the stateless AV1 request API headers; hardware AV1 playback requires a
+driver exposing AV1. See [hardware decoding](docs/video-decoding.md) for
+build settings, measured results and patch checks against the pinned release.
+
 This is an unofficial, experimental build. See [Limitations](#limitations)
 before you use it for anything other than VR sites.
 
