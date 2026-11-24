@@ -67,6 +67,18 @@ errors or sampled-pixel mismatches. These used looped 8-bit synthetic clips.
 8K60 stalled at decoder startup in that direct test. The browser results
 below use a separate playback path. 10-bit/HDR and film grain remain untested.
 
+## Vulkan playback configuration (November 25, 2026)
+
+On SteamOS 0.5.10 preview with kernel `7.2.0-g04c7e99cb73a`, the updated stock Iris driver exposes AV1 to the existing Chromium 157.0.8103.15 build. The former ANGLE OpenGL configuration converted decoded NV12 to AR24 using a CPU LibYUV image processor; an 8K60 file advanced at roughly 0.47× speed.
+
+The launcher now enables Vulkan for Skia and ANGLE, while explicitly disabling `VulkanFromANGLE` and `DefaultANGLEVulkan`. Separate Vulkan devices permit direct NV12 video-texture import. With `VulkanFromANGLE` enabled, direct WebGL imports failed with `Importing textures with external sampling into GL is not possible`.
+
+The same offline AV1 clip, [NIO-zSgWkgQ](https://www.youtube.com/watch?v=NIO-zSgWkgQ), sustained 59.95 presented fps in native VR over 40.17 seconds, with two dropped frames and no buffering. The user confirmed both eye views and working head tracking. No new browser binary, firmware or kernel module was required.
+
+`AudioVideoTracks` is also enabled so [YouTube WebXR 0.3.1](https://github.com/mmis1000/youtubeWebXr) can suspend the redundant background video track while retaining YouTube's audio and clock, then restore it on exit. The installed live YouTube test ran at 0.99964× speed with maximum sampled drift of 18.85 ms. It still dropped 362 of 2,418 frames; live playback is not frame-perfect 8K60. See the [full validation record](https://github.com/mmis1000/youtubeWebXr/blob/main/docs/steam-frame-8k-validation.md).
+
+To update an existing installation, copy `frame/chromium-xr` to `~/.local/bin/chromium-xr` and restart Chromium. Keep the existing executable permission. The new launcher flags are sufficient for the tested binary.
+
 ## Validation record
 
 - November 5, 2026: installed Chromium 157.0.8103.15 from release

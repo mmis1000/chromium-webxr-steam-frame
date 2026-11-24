@@ -30,13 +30,19 @@ fi
 
 # --enable-features=OpenXR: the Linux OpenXR device is off by default.
 # AcceleratedVideoDecoder enables the compiled V4L2 backend on Linux.
+# AudioVideoTracks lets VR viewers retain audio while suspending background video.
+# Vulkan keeps decoded NV12 on the GPU. Separate Skia/ANGLE devices preserve
+# WebGL texture import; VulkanFromANGLE rejects these external-sampling images.
 # --ozone-platform=x11: gamescope's X display, where each app is a panel.
 # --no-first-run and --password-store=basic: otherwise startup can stop at a
 #   first-run or keyring prompt you can't see.
 # SteamOS 0.5.7 supports the XR service's seccomp sandbox.
 exec "$CHROME" \
   --user-data-dir="$HOME/.config/chromium-xr" \
-  --enable-features=OpenXR,AcceleratedVideoDecoder \
+  --enable-features=OpenXR,AcceleratedVideoDecoder,Vulkan \
+  --enable-blink-features=AudioVideoTracks \
+  --use-gl=angle --use-angle=vulkan \
+  --disable-features=VulkanFromANGLE,DefaultANGLEVulkan \
   --ozone-platform=x11 \
   --no-first-run --no-default-browser-check --password-store=basic \
   "$@"
