@@ -39,6 +39,9 @@ unset TU_DEBUG_FILE TU_DEBUG
 # --enable-features=OpenXR: the Linux OpenXR device is off by default.
 # AcceleratedVideoDecoder enables the compiled V4L2 backend on Linux.
 # AudioVideoTracks lets VR viewers retain audio while suspending background video.
+#   It goes in --enable-features (Blink generates a base::Feature of the same
+#   name); --enable-blink-features works too but triggers the "unsupported
+#   command-line flag" warning bar.
 # Vulkan keeps decoded NV12 on the GPU. Separate Skia/ANGLE devices preserve
 # WebGL texture import; VulkanFromANGLE rejects these external-sampling images.
 # --ozone-platform=x11: gamescope's X display, where each app is a panel.
@@ -47,8 +50,7 @@ unset TU_DEBUG_FILE TU_DEBUG
 # SteamOS 0.5.7 supports the XR service's seccomp sandbox.
 exec "$CHROME" \
   --user-data-dir="$HOME/.config/chromium-xr" \
-  --enable-features=OpenXR,AcceleratedVideoDecoder,Vulkan \
-  --enable-blink-features=AudioVideoTracks \
+  --enable-features=OpenXR,AcceleratedVideoDecoder,Vulkan,AudioVideoTracks \
   --use-gl=angle --use-angle=vulkan \
   --disable-features=VulkanFromANGLE,DefaultANGLEVulkan \
   --ozone-platform=x11 \
