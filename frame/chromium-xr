@@ -28,6 +28,14 @@ if [[ -n "${LD_PRELOAD:-}" ]]; then
   fi
 fi
 
+# Steam's launch wrapper sets TU_DEBUG_FILE (and may set TU_DEBUG) for every app
+# it starts. With TU_DEBUG_FILE set, Mesa's turnip Vulkan driver calls
+# inotify_init1 to watch that file. The XR service's seccomp sandbox
+# (xr_compositing) doesn't allow inotify_init1, so the first XR process dies
+# with SIGSYS and the first "Enter VR" fails with NotSupportedError. Chromium
+# needs neither variable.
+unset TU_DEBUG_FILE TU_DEBUG
+
 # --enable-features=OpenXR: the Linux OpenXR device is off by default.
 # AcceleratedVideoDecoder enables the compiled V4L2 backend on Linux.
 # AudioVideoTracks lets VR viewers retain audio while suspending background video.
